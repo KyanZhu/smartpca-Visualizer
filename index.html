@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCA Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        .sidebar-left {
+            width: 250px;
+            background-color: white;
+            padding: 15px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 10;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            position: relative;
+            background-color: white;
+        }
+        .chart-container {
+            flex-grow: 1;
+            position: relative;
+            height: 100%;
+            min-width: 0; /* Ensure correct scaling in flex layout */
+        }
+        .sidebar-right {
+            width: 250px;
+            background-color: white;
+            padding: 15px;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .tooltip {
+            position: absolute;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 14px;
+            z-index: 100;
+            display: none;
+        }
+        .legend {
+            overflow-y: auto;
+            flex-grow: 1;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            padding: 5px;
+            cursor: pointer;
+            opacity: 1;
+            transition: opacity 0.3s;
+            border-radius: 3px;
+        }
+        .legend-item:hover {
+            background-color: #f0f0f0;
+        }
+        .legend-item.hidden {
+            opacity: 0.5;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 10px;
+            border-radius: 3px;
+        }
+        .loading {
+            text-align: center;
+            font-size: 14px;
+            margin: 10px 0;
+            color: #666;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px 0;
+            width: 100%;
+            text-align: center;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .search-box {
+            padding: 8px;
+            margin: 5px 0 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: calc(100% - 18px);
+        }
+        .zoom-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #333;
+            z-index: 50;
+        }
+        .file-input {
+            margin: 10px 0;
+        }
+        .file-input input[type="file"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .section {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #555;
+            font-size: 14px;
+        }
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+                overflow: auto;
+            }
+            .sidebar-left, .sidebar-right {
+                width: 100%;
+                height: auto;
+                box-shadow: none;
+                border-bottom: 1px solid #ddd;
+            }
+            .main-content {
+                height: 70vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left sidebar: title and control panel -->
+        <div class="sidebar-left">
+            <h1>Population Genetics PCA Visualization</h1>
+            
+            <div class="section">
+                <div class="section-title">Data Source</div>
+                <div id="loading" class="loading">Loading data...</div>
+                <div class="file-input">
+                    <div>Upload custom data:</div>
+                    <input type="file" id="file-input" accept=".evec">
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">View Controls</div>
+                <button id="reset-zoom">Reset View</button>
+                <button id="show-all">Show All Populations</button>
+                <button id="hide-all">Hide All Populations</button>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Save Chart</div>
+                <button id="save-svg">Save as SVG</button>
+                <button id="save-png">Save as PNG</button>
+            </div>
+        </div>
+        
+        <!-- Main content area: PCA chart -->
+        <div class="main-content">
+            <div class="chart-container">
+                <div class="tooltip"></div>
+                <div class="zoom-info">Tip: Scroll to zoom, drag to pan</div>
+                <svg id="pca-plot"></svg>
+            </div>
+        </div>
+        
+        <!-- Right sidebar: Legend -->
+        <div class="sidebar-right">
+            <input type="text" id="search-population" placeholder="Search populations..." class="search-box">
+            <div class="legend-title">Population Legend</div>
+            <div id="legend" class="legend"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let data = [];
+        let svg, xScale, yScale, tooltip, g;
+        let populationColors = {};
+        let width, height;
+        let zoom;
+        let hiddenPopulations = new Set();
+        
+        // Initialization function
+        function init() {
+            // Get DOM elements
+            svg = d3.select("#pca-plot");
+            tooltip = d3.select(".tooltip");
+            
+            // Set file input listener
+            document.getElementById('file-input').addEventListener('change', handleFileSelect);
+            document.getElementById('reset-zoom').addEventListener('click', resetZoom);
+            document.getElementById('save-svg').addEventListener('click', saveSVG);
+            document.getElementById('save-png').addEventListener('click', savePNG);
+            document.getElementById('show-all').addEventListener('click', showAllPopulations);
+            document.getElementById('hide-all').addEventListener('click', hideAllPopulations);
+            document.getElementById('search-population').addEventListener('input', filterPopulations);
+            
+            // Hide loading indicator
+            document.getElementById('loading').style.display = 'none';
+            
+            // Listen for window resize to redraw chart
+            window.addEventListener('resize', function() {
+                if (data.length > 0) {
+                    drawPCA();
+                }
+            });
+        }
+        
+        // Handle file selection
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('loading').style.display = 'block';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                parseEvecFile(e.target.result);
+                drawPCA();
+                document.getElementById('loading').style.display = 'none';
+            };
+            reader.readAsText(file);
+        }
+        
+        // Parse .evec file
+        function parseEvecFile(content) {
+            const lines = content.trim().split('\n');
+            data = [];
+            hiddenPopulations = new Set();
+            
+            // Skip first line (contains eigenvalue information)
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === '') continue;
+                
+                const parts = line.split(/\s+/);
+                if (parts.length >= 5) { // Ensure enough columns
+                    const individual = parts[0];
+                    const pc1 = parseFloat(parts[1]);
+                    const pc2 = parseFloat(parts[2]);
+                    
+                    // Get the last column as population name
+                    const population = parts[parts.length - 1];
+                    
+                    data.push({
+                        individual: individual,
+                        pc1: pc1,
+                        pc2: pc2,
+                        population: population
+                    });
+                }
+            }
+            
+            // Generate population colors
+            generatePopulationColors();
+        }
+        
+        // Generate population colors
+        function generatePopulationColors() {
+            const populations = [...new Set(data.map(d => d.population))];
+            const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+            
+            populations.forEach((pop, i) => {
+                populationColors[pop] = colorScale(i % 10);
+            });
+            
+            // Create legend
+            createLegend(populations);
+        }
+        
+        // Create legend
+        function createLegend(populations) {
+            const legend = d3.select("#legend");
+            legend.html("");
+            
+            populations.sort().forEach(pop => {
+                const item = legend.append("div")
+                    .attr("class", "legend-item")
+                    .attr("data-population", pop)
+                    .on("click", function() {
+                        togglePopulation(pop);
+                    });
+                
+                item.append("div")
+                    .attr("class", "legend-color")
+                    .style("background-color", populationColors[pop]);
+                
+                item.append("span")
+                    .text(pop);
+            });
+        }
+        
+        // Toggle population visibility
+        function togglePopulation(population) {
+            if (hiddenPopulations.has(population)) {
+                hiddenPopulations.delete(population);
+                d3.selectAll(`.legend-item[data-population="${population}"]`).classed("hidden", false);
+            } else {
+                hiddenPopulations.add(population);
+                d3.selectAll(`.legend-item[data-population="${population}"]`).classed("hidden", true);
+            }
+            updateVisibility();
+        }
+        
+        // Show all populations
+        function showAllPopulations() {
+            hiddenPopulations.clear();
+            d3.selectAll(".legend-item").classed("hidden", false);
+            updateVisibility();
+        }
+        
+        // Hide all populations
+        function hideAllPopulations() {
+            const populations = [...new Set(data.map(d => d.population))];
+            hiddenPopulations = new Set(populations);
+            d3.selectAll(".legend-item").classed("hidden", true);
+            updateVisibility();
+        }
+        
+        // Filter populations
+        function filterPopulations() {
+            const searchText = document.getElementById('search-population').value.toLowerCase();
+            const legendItems = d3.selectAll(".legend-item");
+            
+            legendItems.style("display", function() {
+                const population = d3.select(this).attr("data-population");
+                return population.toLowerCase().includes(searchText) ? "flex" : "none";
+            });
+        }
+        
+        // Update point visibility
+        function updateVisibility() {
+            svg.selectAll(".dot")
+                .style("display", d => hiddenPopulations.has(d.population) ? "none" : "inline");
+        }
+        
+        // Reset zoom
+        function resetZoom() {
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity);
+        }
+        
+        // Save as SVG
+        function saveSVG() {
+            const svgEl = document.getElementById('pca-plot');
+            const svgData = new XMLSerializer().serializeToString(svgEl);
+            const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+            saveAs(svgBlob, 'pca_plot.svg');
+        }
+        
+        // Save as PNG
+        function savePNG() {
+            const svgEl = document.getElementById('pca-plot');
+            const svgData = new XMLSerializer().serializeToString(svgEl);
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            // Set Canvas size to SVG size
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Create an image
+            const image = new Image();
+            
+            image.onload = function() {
+                // Set background to white
+                context.fillStyle = 'white';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw SVG to Canvas
+                context.drawImage(image, 0, 0);
+                
+                // Convert Canvas to PNG and save
+                canvas.toBlob(function(blob) {
+                    saveAs(blob, 'pca_plot.png');
+                }, 'image/png');
+            };
+            
+            // Convert SVG to data URL
+            image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+        }
+        
+        // Handle zoom and pan
+        function handleZoom(event) {
+            g.attr("transform", event.transform);
+        }
+        
+        // Draw PCA chart
+        function drawPCA() {
+            // Clear previous chart
+            svg.selectAll("*").remove();
+            
+            // Get container dimensions
+            const container = document.querySelector(".chart-container");
+            const containerRect = container.getBoundingClientRect();
+            
+            // Calculate dimensions, maintain square
+            const minSize = Math.min(containerRect.width, containerRect.height);
+            // Use container width and height rather than forcing minSize to let chart fill naturally
+            width = containerRect.width;
+            height = containerRect.height;
+            
+            // Set SVG dimensions
+            svg.attr("width", width)
+               .attr("height", height);
+            
+            // Set margins
+            const margin = {top: 40, right: 40, bottom: 60, left: 60};
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+            
+            // Create zoom behavior
+            zoom = d3.zoom()
+                .scaleExtent([0.5, 50])
+                .on("zoom", handleZoom);
+            
+            // Apply zoom behavior to SVG
+            svg.call(zoom);
+            
+            // Create drawing area
+            g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+            // Calculate axis ranges
+            const xExtent = d3.extent(data, d => d.pc1);
+            const yExtent = d3.extent(data, d => d.pc2);
+            
+            // Add some margin to ranges
+            const xPadding = (xExtent[1] - xExtent[0]) * 0.05;
+            const yPadding = (yExtent[1] - yExtent[0]) * 0.05;
+            
+            // Create scales
+            xScale = d3.scaleLinear()
+                .domain([xExtent[0] - xPadding, xExtent[1] + xPadding])
+                .range([0, innerWidth]);
+            
+            yScale = d3.scaleLinear()
+                .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
+                .range([innerHeight, 0]);
+            
+            // Add X axis
+            g.append("g")
+                .attr("class", "x-axis")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(d3.axisBottom(xScale))
+                .append("text")
+                .attr("class", "axis-label")
+                .attr("fill", "#000")
+                .attr("x", innerWidth / 2)
+                .attr("y", 40)
+                .attr("text-anchor", "middle")
+                .text("PC1");
+            
+            // Add Y axis
+            g.append("g")
+                .attr("class", "y-axis")
+                .call(d3.axisLeft(yScale))
+                .append("text")
+                .attr("class", "axis-label")
+                .attr("fill", "#000")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -innerHeight / 2)
+                .attr("y", -40)
+                .attr("text-anchor", "middle")
+                .text("PC2");
+            
+            // Draw data points
+            g.selectAll(".dot")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "dot")
+                .attr("cx", d => xScale(d.pc1))
+                .attr("cy", d => yScale(d.pc2))
+                .attr("r", 4) // Reduce point size for better visibility
+                .attr("fill", d => populationColors[d.population])
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 1)
+                .attr("opacity", 0.7)
+                .style("display", d => hiddenPopulations.has(d.population) ? "none" : "inline")
+                .on("mouseover", function(event, d) {
+                    // Highlight current point
+                    d3.select(this)
+                        .attr("r", 6)
+                        .attr("stroke-width", 2)
+                        .attr("opacity", 1);
+                    
+                    // Show tooltip
+                    tooltip.style("display", "block")
+                        .html(`
+                            <div><strong>Individual:</strong> ${d.individual}</div>
+                            <div><strong>Population:</strong> ${d.population}</div>
+                            <div><strong>PC1:</strong> ${d.pc1.toFixed(4)}</div>
+                            <div><strong>PC2:</strong> ${d.pc2.toFixed(4)}</div>
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 30) + "px");
+                })
+                .on("mouseout", function() {
+                    // Restore point style
+                    d3.select(this)
+                        .attr("r", 4)
+                        .attr("stroke-width", 1)
+                        .attr("opacity", 0.7);
+                    
+                    // Hide tooltip
+                    tooltip.style("display", "none");
+                });
+            
+            // Add chart title
+            svg.append("text")
+                .attr("class", "chart-title")
+                .attr("x", width / 2)
+                .attr("y", 20)
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .style("font-weight", "bold")
+                .text("Population Genetics PC1 vs PC2");
+        }
+        
+        // Update tooltip position when mouse moves
+        document.addEventListener("mousemove", function(event) {
+            tooltip
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 30) + "px");
+        });
+        
+        // Initialize after page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html> 
