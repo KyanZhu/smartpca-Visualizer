@@ -29,7 +29,7 @@ This is an interactive web-based visualization tool for exploring Principal Comp
    ```
 2. Navigate to the project directory:
    ```
-   cd pca-visualization
+   cd smartpca-Visualizer
    ```
 3. Open `pca_visualization.html` in your web browser
 
