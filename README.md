@@ -14,7 +14,7 @@ This is an interactive web-based visualization tool for exploring Principal Comp
 
 ### Online Version
 
-1. [smartpca-Visualizer](https://kyanzhu.github.io/smartpca-Visualizer/)
+1. Open [smartpca-Visualizer](https://kyanzhu.github.io/smartpca-Visualizer/)
 2. Upload your .evec format file using the "Upload custom data" button
 3. Interact with the visualization using mouse controls:
    - Scroll to zoom
@@ -60,7 +60,3 @@ This tool uses:
 
 ## Screenshots
  ![](https://github.com/KyanZhu/smartpca-Visualizer/blob/main/screenshot.png?raw=true)
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
