@@ -25,7 +25,7 @@ This is an interactive web-based visualization tool for exploring Principal Comp
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/pca-visualization.git
+   git clone https://github.com/KyanZhu/smartpca-Visualizer.git
    ```
 2. Navigate to the project directory:
    ```
